@@ -4,6 +4,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { env } from "./config/env.js";
 import { connectDB } from "./config/database.js";
+import accountsRoutes from "./modules/momo/accounts.routes.js";
 
 const app = express();
 
@@ -30,6 +31,9 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// ─── Routes ──────────────────────────────────────────
+app.use("/api/accounts", accountsRoutes);
 
 // ─── 404 Handler ─────────────────────────────────────
 app.use((req, res) => {
