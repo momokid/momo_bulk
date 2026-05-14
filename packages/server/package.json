@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "main": "src/index.js",
+  "type": "module",
   "scripts": {
-    "dev": "nodemon src/index.js",
+    "dev": "nodemon",
     "start": "node src/index.js",
     "test": "jest --runInBand --forceExit",
     "test:watch": "jest --watch --runInBand"
