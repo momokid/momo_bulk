@@ -33,3 +33,6 @@ Thumbs.db
 coverage/
 packages/client/coverage/
 packages/server/coverage/
+
+# One-time provisioning script
+packages/server/provision.js
