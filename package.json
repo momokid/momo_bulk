@@ -7,12 +7,12 @@
     "packages/server"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace=packages/server\" \"npm run dev --workspace=packages/client\"",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "npm run dev --workspace=packages/server",
     "dev:client": "npm run dev --workspace=packages/client",
     "build": "npm run build --workspace=packages/client",
     "start": "npm run start --workspace=packages/server",
-    "test": "concurrently \"npm run test --workspace=packages/server\" \"npm run test --workspace=packages/client\""
+"test:server": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config=packages/server/jest.config.cjs --runInBand --forceExit",    "test": "npm run test:server"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

@@ -1,0 +1,6 @@
+module.exports = {
+  testEnvironment: "node",
+  testMatch: ["**/tests/**/*.test.js"],
+  transform: {},
+  setupFiles: ["./tests/setup.js"],
+};

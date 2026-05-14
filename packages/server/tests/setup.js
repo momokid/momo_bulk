@@ -1,0 +1,16 @@
+process.env.NODE_ENV = "test";
+process.env.PORT = "8001";
+process.env.DB_HOST = "localhost";
+process.env.DB_PORT = "3306";
+process.env.DB_NAME = "momo_bulk_test";
+process.env.DB_USER = "root";
+process.env.DB_PASSWORD = "";
+process.env.JWT_SECRET = "test_jwt_secret_for_testing_only";
+process.env.JWT_EXPIRES_IN = "2h";
+process.env.REFRESH_TOKEN_EXPIRES_IN = "7d";
+process.env.PIN_SALT_ROUNDS = "10";
+process.env.MTN_BASE_URL = "https://sandbox.momodeveloper.mtn.com";
+process.env.MTN_SUBSCRIPTION_KEY = "test_subscription_key";
+process.env.MTN_TARGET_ENVIRONMENT = "sandbox";
+process.env.MTN_CURRENCY = "GHS";
+process.env.ENCRYPTION_KEY = "test_encryption_key_32chars_here";
