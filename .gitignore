@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+packages/client/node_modules/
+packages/server/node_modules/
+
+# Environment variables - NEVER commit these
+.env
+.env.local
+.env.production
+
+# Build output
+packages/client/dist/
+packages/server/dist/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Database
+*.sql
+*.sqlite
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/settings.json
+.vscode/launch.json
+
+# Test coverage
+coverage/
+packages/client/coverage/
+packages/server/coverage/
