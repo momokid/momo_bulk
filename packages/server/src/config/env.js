@@ -57,10 +57,11 @@ export const env = {
   mtn: {
     baseUrl: process.env.MTN_BASE_URL,
     subscriptionKey: process.env.MTN_SUBSCRIPTION_KEY,
-    apiUser: process.env.MTN_API_USER,
-    apiKey: process.env.MTN_API_KEY,
     targetEnvironment: process.env.MTN_TARGET_ENVIRONMENT,
     currency: process.env.MTN_CURRENCY,
-    accountNumber: process.env.MTN_ACCOUNT_NUMBER,
+  },
+
+  encryption: {
+    key: process.env.ENCRYPTION_KEY,
   },
 };
