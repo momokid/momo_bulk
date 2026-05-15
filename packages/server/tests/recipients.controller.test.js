@@ -1,6 +1,14 @@
 import { jest } from "@jest/globals";
 import request from "supertest";
 
+jest.unstable_mockModule("../src/modules/auth/auth.service.js", () => ({
+  register: jest.fn(),
+  login: jest.fn(),
+  refreshToken: jest.fn(),
+  logout: jest.fn(),
+  acceptTerms: jest.fn(),
+}));
+
 jest.unstable_mockModule(
   "../src/modules/transfers/transfers.service.js",
   () => ({

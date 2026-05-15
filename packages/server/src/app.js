@@ -8,7 +8,8 @@ import accountsRoutes from "./modules/momo/accounts.routes.js";
 import senderRoutes from "./modules/sender/sender.routes.js";
 import recipientsRoutes from "./modules/recipients/recipients.routes.js";
 import transfersRoutes from "./modules/transfers/transfers.routes.js";
-import reportsRoutes from './modules/reports/reports.routes.js';
+import reportsRoutes from "./modules/reports/reports.routes.js";
+import authRoutes from "./modules/auth/auth.routes.js";
 
 const app = express();
 
@@ -36,11 +37,12 @@ app.get("/health", (req, res) => {
 });
 
 // ─── Routes ───────────────────────────────────────────
+app.use("/api/auth", authRoutes);
 app.use("/api/accounts", accountsRoutes);
 app.use("/api/sender", senderRoutes);
 app.use("/api/recipients", recipientsRoutes);
 app.use("/api/transfers", transfersRoutes);
-app.use('/api/reports', reportsRoutes);
+app.use("/api/reports", reportsRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────
 app.use((req, res) => {
