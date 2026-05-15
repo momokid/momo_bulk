@@ -6,6 +6,8 @@ import { env } from "./config/env.js";
 
 import accountsRoutes from "./modules/momo/accounts.routes.js";
 import senderRoutes from "./modules/sender/sender.routes.js";
+import recipientsRoutes from "./modules/recipients/recipients.routes.js";
+import transfersRoutes from "./modules/transfers/transfers.routes.js";
 
 const app = express();
 
@@ -35,6 +37,8 @@ app.get("/health", (req, res) => {
 // ─── Routes ───────────────────────────────────────────
 app.use("/api/accounts", accountsRoutes);
 app.use("/api/sender", senderRoutes);
+app.use("/api/recipients", recipientsRoutes);
+app.use("/api/transfers", transfersRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────
 app.use((req, res) => {

@@ -1,6 +1,24 @@
 import { jest } from "@jest/globals";
 import request from "supertest";
 
+jest.unstable_mockModule(
+  "../src/modules/transfers/transfers.service.js",
+  () => ({
+    resetStuckTransfers: jest.fn(),
+    createBatch: jest.fn(),
+    getBatchById: jest.fn(),
+    getAllBatches: jest.fn(),
+    executeSingleTransfer: jest.fn(),
+    executeBatch: jest.fn(),
+    updateTransfer: jest.fn(),
+    deleteTransfer: jest.fn(),
+  }),
+);
+
+jest.unstable_mockModule("../src/config/database.js", () => ({
+  default: { query: jest.fn(), getConnection: jest.fn() },
+}));
+
 jest.unstable_mockModule("../src/modules/momo/momo.service.js", () => ({
   verifyAccountName: jest.fn(),
 }));
