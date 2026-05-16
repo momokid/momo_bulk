@@ -16,25 +16,25 @@ const fmt = (n) =>
   })}`;
 
 const SCORE_STYLES = {
-  STRONG:   'bg-green-100 text-green-700',
-  LIKELY:   'bg-yellow-100 text-yellow-700',
-  WEAK:     'bg-orange-100 text-orange-700',
-  NO_MATCH: 'bg-red-100 text-red-700',
-  NOT_FOUND:'bg-red-100 text-red-700',
-  EXCLUDED: 'bg-gray-100 text-gray-400',
-  INVALID:  'bg-gray-100 text-gray-400',
-  API_ERROR:'bg-red-100 text-red-600',
+  STRONG:    'bg-green-100 text-green-700',
+  LIKELY:    'bg-yellow-100 text-yellow-700',
+  WEAK:      'bg-orange-100 text-orange-700',
+  NO_MATCH:  'bg-red-100 text-red-700',
+  NOT_FOUND: 'bg-red-100 text-red-700',
+  EXCLUDED:  'bg-gray-100 text-gray-400',
+  INVALID:   'bg-gray-100 text-gray-400',
+  API_ERROR: 'bg-red-100 text-red-600',
 };
 
 const SCORE_LABELS = {
-  STRONG:   'Strong',
-  LIKELY:   'Likely',
-  WEAK:     'Weak',
-  NO_MATCH: 'No match',
-  NOT_FOUND:'Not found',
-  EXCLUDED: 'Excluded',
-  INVALID:  'Invalid',
-  API_ERROR:'Error',
+  STRONG:    'Strong',
+  LIKELY:    'Likely',
+  WEAK:      'Weak',
+  NO_MATCH:  'No match',
+  NOT_FOUND: 'Not found',
+  EXCLUDED:  'Excluded',
+  INVALID:   'Invalid',
+  API_ERROR: 'Error',
 };
 
 // ─── ScoreBadge ───────────────────────────────────────────────────────────────
@@ -135,9 +135,9 @@ function RecipientModal({ open, recipient, onSave, onClose }) {
 // ─── PayModal ─────────────────────────────────────────────────────────────────
 
 function PayModal({ open, mode, count, totalAmount, onConfirm, onClose }) {
-  const [password,   setPassword]   = useState('');
-  const [isLoading,  setIsLoading]  = useState(false);
-  const [error,      setError]      = useState('');
+  const [password,  setPassword]  = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error,     setError]     = useState('');
 
   useEffect(() => {
     if (open) { setPassword(''); setError(''); setIsLoading(false); }
@@ -216,35 +216,36 @@ function PayModal({ open, mode, count, totalAmount, onConfirm, onClose }) {
 // ─── Transfer ─────────────────────────────────────────────────────────────────
 
 export default function Transfer() {
-  const { user }   = useAuth();
-  const navigate   = useNavigate();
-  const fileRef    = useRef(null);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const fileRef  = useRef(null);
 
   // ── Step ──────────────────────────────────────────────
   const [step, setStep] = useState(1);
 
   // ── Section 1 ─────────────────────────────────────────
-  const [accountId,      setAccountId]      = useState('');
   const [senderNumberId, setSenderNumberId] = useState('');
   const [reference,      setReference]      = useState('');
 
   // ── Section 2 ─────────────────────────────────────────
-  const [recipients,       setRecipients]       = useState([]);
-  const [hasExampleNums,   setHasExampleNums]   = useState(false);
-  const [isVerifying,      setIsVerifying]      = useState(false);
-  const [isVerified,       setIsVerified]       = useState(false);
-  const [uploadLoading,    setUploadLoading]    = useState(false);
-  const [isExecuting,      setIsExecuting]      = useState(false);
+  const [recipients,    setRecipients]    = useState([]);
+  const [hasExampleNums,setHasExampleNums]= useState(false);
+  const [isVerifying,   setIsVerifying]   = useState(false);
+  const [isVerified,    setIsVerified]    = useState(false);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [isExecuting,   setIsExecuting]   = useState(false);
 
   // ── Modals ────────────────────────────────────────────
   const [recipientModal, setRecipientModal] = useState({ open: false, recipient: null });
   const [deleteTarget,   setDeleteTarget]   = useState(null);
   const [payModal,       setPayModal]       = useState({ open: false, mode: 'all', targetId: null });
 
-  // ── Data queries ──────────────────────────────────────
-  const { data: accounts = [] } = useQuery({
-    queryKey: ['accounts'],
-    queryFn:  () => api.get('/api/accounts').then((r) => r.data.accounts || []),
+  // ── Queries ───────────────────────────────────────────
+
+  // User's single disbursement account (auto-fetched, not selected)
+  const { data: userAccount = null } = useQuery({
+    queryKey: ['userAccount'],
+    queryFn:  () => api.get('/api/accounts').then((r) => r.data.account),
   });
 
   const { data: senderNumbers = [] } = useQuery({
@@ -253,7 +254,6 @@ export default function Transfer() {
   });
 
   // ── Derived ───────────────────────────────────────────
-  const selectedAccount      = accounts.find((a) => a.id === Number(accountId));
   const selectedSenderNumber = senderNumbers.find((s) => s.id === Number(senderNumberId));
 
   const eligible       = recipients.filter((r) =>
@@ -262,15 +262,15 @@ export default function Transfer() {
   const reviewCount    = recipients.filter((r) => ['LIKELY', 'WEAK'].includes(r.matchStatus)).length;
   const eligibleAmount = eligible.reduce((s, r) => s + Number(r.amount), 0);
 
-  const payTarget    = recipients.find((r) => r._id === payModal.targetId);
-  const payAmount    = payModal.mode === 'all' ? eligibleAmount : (payTarget?.amount || 0);
-  const payCount     = payModal.mode === 'all' ? eligible.length : 1;
+  const payTarget = recipients.find((r) => r._id === payModal.targetId);
+  const payAmount = payModal.mode === 'all' ? eligibleAmount : (payTarget?.amount || 0);
+  const payCount  = payModal.mode === 'all' ? eligible.length : 1;
 
   // ── Section 1: Continue ───────────────────────────────
   const handleContinue = () => {
-    if (!accountId)       { toast.error('Select a disbursement account'); return; }
-    if (!senderNumberId)  { toast.error('Select a sender number');        return; }
-    if (!reference.trim()){ toast.error('Enter a batch reference');       return; }
+    if (!userAccount)     { toast.error('Set up a disbursement account in Settings first.'); return; }
+    if (!senderNumberId)  { toast.error('Select a sender number');   return; }
+    if (!reference.trim()){ toast.error('Enter a batch reference');  return; }
     setStep(2);
   };
 
@@ -299,7 +299,8 @@ export default function Transfer() {
 
       toast.success(`${data.validCount} recipient${data.validCount !== 1 ? 's' : ''} loaded`);
       if (data.excludedCount > 0)
-        toast(`${data.excludedCount} example row${data.excludedCount !== 1 ? 's' : ''} excluded`, { icon: '⚠️' });
+        toast(`${data.excludedCount} example row${data.excludedCount !== 1 ? 's' : ''} excluded`,
+          { icon: '⚠️' });
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to parse CSV');
     } finally {
@@ -325,7 +326,8 @@ export default function Transfer() {
     setRecipients((prev) =>
       prev.map((r) =>
         r._id === recipientModal.recipient._id
-          ? { ...r, phone, name, amount, mtnName: null, matchScore: null, matchStatus: null }
+          ? { ...r, phone, name, amount,
+              mtnName: null, matchScore: null, matchStatus: null }
           : r,
       ),
     );
@@ -354,10 +356,9 @@ export default function Transfer() {
           phone: r.phone, name: r.name, amount: r.amount,
           valid: r.valid, excluded: r.excluded, errors: r.errors || [],
         })),
-        accountId: Number(accountId),
+        // accountId removed — backend auto-fetches from user's account
       });
 
-      // Merge by position — server returns in same order as sent
       const resultMap = new Map(toVerify.map((r, i) => [r._id, data.recipients[i]]));
 
       setRecipients((prev) =>
@@ -365,7 +366,8 @@ export default function Transfer() {
           if (r.excluded) return r;
           const res = resultMap.get(r._id);
           if (!res) return r;
-          return { ...r, mtnName: res.mtnName, matchScore: res.matchScore, matchStatus: res.matchStatus };
+          return { ...r, mtnName: res.mtnName,
+            matchScore: res.matchScore, matchStatus: res.matchStatus };
         }),
       );
       setIsVerified(true);
@@ -379,7 +381,6 @@ export default function Transfer() {
 
   // ── Password verification + batch execution ───────────
   const executeTransfer = async (password, recipientsToSend) => {
-    // Verify password via login
     try {
       await api.post('/api/auth/login', { email: user.email, password });
     } catch {
@@ -387,12 +388,12 @@ export default function Transfer() {
     }
 
     const { data: batchData } = await api.post('/api/transfers/batch', {
-      senderNumberId:  selectedSenderNumber.id,
-      reference:       reference.trim(),
-      senderNumber:    selectedSenderNumber.phone_number,
-      senderName:      selectedSenderNumber.mtn_name,
-      momoAccountId:   Number(accountId),
-      recipients:      recipientsToSend,
+      senderNumberId: selectedSenderNumber.id,
+      reference:      reference.trim(),
+      senderNumber:   selectedSenderNumber.phone_number,
+      senderName:     selectedSenderNumber.mtn_name,
+      momoAccountId:  userAccount.id,   // auto-fetched, not user-selected
+      recipients:     recipientsToSend,
     });
 
     const batchId = batchData.batch.id;
@@ -403,17 +404,20 @@ export default function Transfer() {
   const handlePayAll = async (password) => {
     setIsExecuting(true);
     try {
-      const batchId = await executeTransfer(password, eligible.map((r) => ({
-        phone: r.phone, name: r.name, amount: r.amount,
-        valid: r.valid, matchStatus: r.matchStatus,
-        mtnName: r.mtnName, matchScore: r.matchScore,
-      })));
+      const batchId = await executeTransfer(
+        password,
+        eligible.map((r) => ({
+          phone: r.phone, name: r.name, amount: r.amount,
+          valid: r.valid, matchStatus: r.matchStatus,
+          mtnName: r.mtnName, matchScore: r.matchScore,
+        })),
+      );
       setPayModal({ open: false, mode: 'all', targetId: null });
       toast.success('Batch sent successfully!');
       navigate(`/history/${batchId}`);
     } catch (err) {
       setIsExecuting(false);
-      throw err; // PayModal shows it
+      throw err;
     }
   };
 
@@ -439,7 +443,8 @@ export default function Transfer() {
   // ── Step bubble ───────────────────────────────────────
   const Bubble = ({ n, done }) => (
     <span className={`w-5 h-5 rounded-full text-xs flex items-center justify-center
-                      font-bold shrink-0 ${done ? 'bg-green-500 text-white' : 'bg-brand-600 text-white'}`}>
+                      font-bold shrink-0
+                      ${done ? 'bg-green-500 text-white' : 'bg-brand-600 text-white'}`}>
       {done ? '✓' : n}
     </span>
   );
@@ -470,41 +475,44 @@ export default function Transfer() {
 
           {step === 1 ? (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-                {/* Disbursement account */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Disbursement Account
-                  </label>
-                  <select value={accountId} onChange={(e) => setAccountId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300
-                               text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
-                    <option value="">Select account…</option>
-                    {accounts.filter((a) => a.is_active).map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.label} — {a.account_number}
-                      </option>
-                    ))}
-                  </select>
+              {/* No account warning */}
+              {!userAccount && (
+                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200
+                                rounded-lg px-4 py-3">
+                  <span className="text-amber-500 shrink-0 mt-0.5">⚠</span>
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">
+                      No disbursement account found
+                    </p>
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      Set up your MTN MoMo disbursement account before sending payments.
+                    </p>
+                    <a href="/settings"
+                      className="text-xs font-semibold text-amber-700 underline mt-1 inline-block">
+                      Go to Settings →
+                    </a>
+                  </div>
                 </div>
+              )}
 
-                {/* Sender number */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Sender Number
-                  </label>
-                  <select value={senderNumberId} onChange={(e) => setSenderNumberId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300
-                               text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
-                    <option value="">Select sender…</option>
-                    {senderNumbers.filter((s) => s.is_active).map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.label} — {s.phone_number}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* Sender number */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Sender Number
+                </label>
+                <select value={senderNumberId}
+                  onChange={(e) => setSenderNumberId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300
+                             text-sm focus:outline-none focus:ring-2
+                             focus:ring-brand-500 bg-white">
+                  <option value="">Select sender…</option>
+                  {senderNumbers.filter((s) => s.is_active).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label} — {s.phone_number}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Reference */}
@@ -523,9 +531,10 @@ export default function Transfer() {
                 />
               </div>
 
-              <button onClick={handleContinue}
+              <button onClick={handleContinue} disabled={!userAccount}
                 className="px-6 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700
-                           text-white text-sm font-semibold transition">
+                           text-white text-sm font-semibold transition
+                           disabled:opacity-50 disabled:cursor-not-allowed">
                 Continue →
               </button>
             </div>
@@ -534,7 +543,7 @@ export default function Transfer() {
             <div className="text-sm text-gray-600 flex flex-wrap gap-x-6 gap-y-1">
               <span>
                 <span className="text-gray-400">Account: </span>
-                {selectedAccount?.label}
+                {userAccount?.label} ({userAccount?.account_number})
               </span>
               <span>
                 <span className="text-gray-400">Sender: </span>
@@ -566,36 +575,47 @@ export default function Transfer() {
                 <button
                   onClick={() => fileRef.current?.click()}
                   disabled={uploadLoading}
-                  className="px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-medium
-                             text-gray-700 hover:bg-gray-50 transition disabled:opacity-60">
+                  className="px-3 py-1.5 rounded-lg border border-gray-300 text-xs
+                             font-medium text-gray-700 hover:bg-gray-50 transition
+                             disabled:opacity-60">
                   {uploadLoading ? 'Uploading…' : '↑ Upload CSV'}
                 </button>
 
                 <button
                   onClick={() => setRecipientModal({ open: true, recipient: null })}
-                  className="px-3 py-1.5 rounded-lg border border-brand-300 text-xs font-medium
-                             text-brand-700 hover:bg-brand-50 transition">
+                  className="px-3 py-1.5 rounded-lg border border-brand-300 text-xs
+                             font-medium text-brand-700 hover:bg-brand-50 transition">
                   + Add Recipient
                 </button>
 
                 {recipients.length > 0 && (
-                  <button onClick={() => { setRecipients([]); setHasExampleNums(false); setIsVerified(false); }}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 transition">
+                  <button
+                    onClick={() => {
+                      setRecipients([]);
+                      setHasExampleNums(false);
+                      setIsVerified(false);
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium
+                               text-red-500 hover:bg-red-50 transition">
                     Clear All
                   </button>
                 )}
               </div>
 
               <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden"
-                onChange={(e) => { handleCSVUpload(e.target.files?.[0]); e.target.value = ''; }} />
+                onChange={(e) => {
+                  handleCSVUpload(e.target.files?.[0]);
+                  e.target.value = '';
+                }} />
             </div>
 
             {/* Example numbers warning */}
             {hasExampleNums && (
-              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200
+                              rounded-lg px-4 py-3">
                 <span className="text-amber-500 shrink-0 mt-0.5">⚠</span>
                 <p className="text-sm text-amber-700">
-                  <strong>Example rows excluded</strong> — template phone numbers were detected
+                  <strong>Example rows excluded</strong> — template phone numbers detected
                   and will not be sent.
                 </p>
               </div>
@@ -603,7 +623,8 @@ export default function Transfer() {
 
             {/* Empty state */}
             {recipients.length === 0 && (
-              <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
+              <div className="bg-white rounded-xl border border-dashed border-gray-300
+                              p-12 text-center">
                 <p className="text-gray-400 text-sm">No recipients yet.</p>
                 <p className="text-gray-400 text-xs mt-1">
                   Upload a CSV or add recipients manually.
@@ -613,7 +634,8 @@ export default function Transfer() {
 
             {/* Validation errors summary */}
             {recipients.some((r) => r.errors?.length > 0) && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 space-y-0.5">
+              <div className="bg-red-50 border border-red-200 rounded-lg
+                              px-4 py-3 space-y-0.5">
                 <p className="text-xs font-semibold text-red-700 mb-1">Rows with errors:</p>
                 {recipients
                   .filter((r) => r.errors?.length > 0)
@@ -650,10 +672,12 @@ export default function Transfer() {
 
                       return (
                         <tr key={r._id}
-                          className={`transition-colors
-                            ${excluded ? 'opacity-40 bg-gray-50' : 'hover:bg-gray-50/60'}`}>
+                          className={`transition-colors ${excluded
+                            ? 'opacity-40 bg-gray-50' : 'hover:bg-gray-50/60'}`}>
                           <td className="px-4 py-3 text-xs text-gray-400">{i + 1}</td>
-                          <td className="px-4 py-3 font-mono text-xs text-gray-700">{r.phone}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-gray-700">
+                            {r.phone}
+                          </td>
                           <td className="px-4 py-3 text-gray-700">{r.name}</td>
                           <td className="px-4 py-3 text-gray-500">
                             {r.mtnName || <span className="text-gray-300">—</span>}
@@ -672,20 +696,24 @@ export default function Transfer() {
                             <div className="flex items-center justify-end gap-3">
                               {!excluded && (
                                 <button
-                                  onClick={() => setRecipientModal({ open: true, recipient: r })}
-                                  className="text-xs text-gray-500 hover:text-brand-600 transition">
+                                  onClick={() =>
+                                    setRecipientModal({ open: true, recipient: r })}
+                                  className="text-xs text-gray-500 hover:text-brand-600
+                                             transition">
                                   Edit
                                 </button>
                               )}
                               <button
                                 onClick={() => setDeleteTarget(r._id)}
-                                className="text-xs text-gray-500 hover:text-red-600 transition">
+                                className="text-xs text-gray-500 hover:text-red-600
+                                           transition">
                                 Delete
                               </button>
                               {canPay && (
                                 <button
                                   onClick={() =>
-                                    setPayModal({ open: true, mode: 'single', targetId: r._id })}
+                                    setPayModal({ open: true, mode: 'single',
+                                      targetId: r._id })}
                                   className="text-xs font-semibold text-brand-600
                                              hover:text-brand-800 transition">
                                   Pay
@@ -705,12 +733,12 @@ export default function Transfer() {
             {recipients.length > 0 && (
               <div className="flex justify-end">
                 <button onClick={handleVerifyNames} disabled={isVerifying}
-                  className="px-5 py-2.5 rounded-lg bg-gray-800 hover:bg-gray-900 text-white
-                             text-sm font-medium transition disabled:opacity-60
+                  className="px-5 py-2.5 rounded-lg bg-gray-800 hover:bg-gray-900
+                             text-white text-sm font-medium transition disabled:opacity-60
                              flex items-center gap-2">
                   {isVerifying && (
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent
-                                     rounded-full animate-spin" />
+                    <span className="w-4 h-4 border-2 border-white
+                                     border-t-transparent rounded-full animate-spin" />
                   )}
                   {isVerifying ? 'Verifying…' : '✓ Verify Names'}
                 </button>
@@ -722,7 +750,9 @@ export default function Transfer() {
               <div className="bg-white rounded-xl border border-gray-200 p-5">
                 <p className="text-sm text-gray-600 mb-4">
                   Ready to pay:{' '}
-                  <span className="font-semibold text-green-700">{approvedCount} approved</span>
+                  <span className="font-semibold text-green-700">
+                    {approvedCount} approved
+                  </span>
                   {reviewCount > 0 && (
                     <>
                       {' '}|{' '}
@@ -732,7 +762,9 @@ export default function Transfer() {
                     </>
                   )}
                   {' '}|{' '}
-                  <span className="font-semibold text-gray-800">{fmt(eligibleAmount)} total</span>
+                  <span className="font-semibold text-gray-800">
+                    {fmt(eligibleAmount)} total
+                  </span>
                 </p>
                 <button
                   onClick={() => setPayModal({ open: true, mode: 'all', targetId: null })}
@@ -741,8 +773,8 @@ export default function Transfer() {
                              text-white font-semibold text-sm transition disabled:opacity-60
                              flex items-center justify-center gap-2">
                   {isExecuting && (
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent
-                                     rounded-full animate-spin" />
+                    <span className="w-4 h-4 border-2 border-white
+                                     border-t-transparent rounded-full animate-spin" />
                   )}
                   Pay All — {fmt(eligibleAmount)}
                 </button>
@@ -763,9 +795,12 @@ export default function Transfer() {
       />
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center
+                        p-4 bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-6 text-center">
-            <p className="text-sm font-semibold text-gray-800 mb-1">Remove this recipient?</p>
+            <p className="text-sm font-semibold text-gray-800 mb-1">
+              Remove this recipient?
+            </p>
             <p className="text-xs text-gray-400 mb-5">This cannot be undone.</p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteTarget(null)}
