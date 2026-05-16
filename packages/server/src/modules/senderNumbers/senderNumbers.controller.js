@@ -12,7 +12,6 @@ export const addNumber = async (req, res) => {
       req.user.id,
       phoneNumber,
       label,
-      accountId,
     );
 
     return res.status(201).json({

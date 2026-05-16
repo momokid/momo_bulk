@@ -1,11 +1,14 @@
+// packages/server/src/modules/recipients/recipients.routes.js
+
 import { Router } from "express";
 import multer from "multer";
 import rateLimit from "express-rate-limit";
+import { authenticate } from "../../middleware/authenticate.js";
 import * as controller from "./recipients.controller.js";
 
 const router = Router();
 
-// ─── Multer — memory storage, CSV only, 2MB max ──────
+// ─── Multer — memory storage, CSV only, 2MB max ───────────────────────────────
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 },
@@ -22,30 +25,30 @@ const upload = multer({
   },
 });
 
-// ─── Rate limiter for name verification ──────────────
+// ─── Rate limiter for name verification ───────────────────────────────────────
 const verifyLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
   message: { error: "Too many verification requests. Please wait a moment." },
 });
 
-// ─── Multer error handler ─────────────────────────────
+// ─── Multer error handler ─────────────────────────────────────────────────────
 const handleUpload = (req, res, next) => {
   upload.single("file")(req, res, (err) => {
     if (err instanceof multer.MulterError) {
-      if (err.code === "LIMIT_FILE_SIZE") {
+      if (err.code === "LIMIT_FILE_SIZE")
         return res
           .status(400)
           .json({ error: "File too large. Maximum size is 2MB." });
-      }
       return res.status(400).json({ error: err.message });
     }
-    if (err) {
-      return res.status(400).json({ error: err.message });
-    }
+    if (err) return res.status(400).json({ error: err.message });
     next();
   });
 };
+
+// ─── All routes require authentication ────────────────────────────────────────
+router.use(authenticate);
 
 router.post("/parse-csv", handleUpload, controller.parseCSV);
 router.post("/verify-names", verifyLimiter, controller.verifyNames);

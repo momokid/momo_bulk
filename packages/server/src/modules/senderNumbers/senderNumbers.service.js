@@ -2,16 +2,11 @@
 
 import pool from "../../config/database.js";
 import { verifyAccountName } from "../momo/momo.service.js";
-import { getAccountById } from "../momo/accounts.service.js";
+import { getActiveAccount } from "../momo/accounts.service.js";
 
 // ─── Add Sender Number ────────────────────────────────────────────────────────
 
-export const addSenderNumber = async (
-  userId,
-  phoneNumber,
-  label,
-  accountId,
-) => {
+export const addSenderNumber = async (userId, phoneNumber, label) => {
   // Validate phone format
   const cleaned = (phoneNumber || "").replace(/\s+/g, "");
   if (!/^0[0-9]{9}$/.test(cleaned)) {
@@ -25,12 +20,14 @@ export const addSenderNumber = async (
     throw Object.assign(new Error("Label is required."), { status: 400 });
   }
 
-  if (!accountId) {
+  // Auto-fetch the user's active disbursement account for MTN verification
+  const account = await getActiveAccount(userId);
+  if (!account) {
     throw Object.assign(
-      new Error("Account ID is required to verify the number."),
-      {
-        status: 400,
-      },
+      new Error(
+        "No active disbursement account found. Please set one up in Settings.",
+      ),
+      { status: 400, code: "NO_ACCOUNT" },
     );
   }
 
@@ -43,24 +40,6 @@ export const addSenderNumber = async (
     throw Object.assign(
       new Error("This number is already saved to your account."),
       { status: 409, code: "DUPLICATE_NUMBER" },
-    );
-  }
-
-  // Load disbursement account for MTN API call
-  const account = await getAccountById(accountId);
-  if (!account) {
-    throw Object.assign(new Error("Disbursement account not found."), {
-      status: 404,
-      code: "ACCOUNT_NOT_FOUND",
-    });
-  }
-  if (!account.is_active) {
-    throw Object.assign(
-      new Error("Selected disbursement account is inactive."),
-      {
-        status: 400,
-        code: "ACCOUNT_INACTIVE",
-      },
     );
   }
 

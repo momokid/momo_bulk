@@ -3,7 +3,7 @@
 import csv from "csv-parser";
 import { Readable } from "stream";
 import { verifyAccountName } from "../momo/momo.service.js";
-import { getAccountById } from "../momo/accounts.service.js";
+import { getActiveAccount } from "../momo/accounts.service.js";
 import { matchNames } from "../../utils/fuzzyMatch.js";
 
 // ─── Delay helper ─────────────────────────────────────
@@ -109,7 +109,7 @@ export const parseCSV = async (req, res) => {
     const excludedCount = validated.filter((r) => r.excluded).length;
     const validCount = validated.filter((r) => r.valid).length;
     const invalidCount = validated.filter(
-      (r) => !r.valid && !r.excluded
+      (r) => !r.valid && !r.excluded,
     ).length;
     const hasExampleNumbers = excludedCount > 0;
 
@@ -130,19 +130,19 @@ export const parseCSV = async (req, res) => {
 // ─── POST /api/recipients/verify-names ───────────────
 export const verifyNames = async (req, res) => {
   try {
-    const { recipients, accountId } = req.body;
+    const { recipients } = req.body;
 
     if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
       return res.status(400).json({ error: "Recipients list is required" });
     }
 
-    if (!accountId) {
-      return res.status(400).json({ error: "Account ID is required" });
-    }
-
-    const account = await getAccountById(accountId);
+    const account = await getActiveAccount(req.user.id); // ← no accountId anywhere
     if (!account) {
-      return res.status(404).json({ error: "Disbursement account not found" });
+      return res.status(400).json({
+        error:
+          "No active disbursement account found. Please set one up in Settings.",
+        code: "NO_ACCOUNT",
+      });
     }
 
     if (!account.is_active) {

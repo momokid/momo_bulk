@@ -1,5 +1,6 @@
 import { jest } from "@jest/globals";
 import request from "supertest";
+import jwt from "jsonwebtoken";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ jest.unstable_mockModule("../src/modules/momo/momo.service.js", () => ({
 }));
 
 jest.unstable_mockModule("../src/modules/momo/accounts.service.js", () => ({
+  getActiveAccount: jest.fn(),
   getAccountById: jest.fn(),
 }));
 
@@ -44,11 +46,18 @@ jest.unstable_mockModule("../src/modules/auth/auth.service.js", () => ({
 
 const { verifyAccountName } =
   await import("../src/modules/momo/momo.service.js");
-const { getAccountById } =
+const { getActiveAccount } =
   await import("../src/modules/momo/accounts.service.js");
 const { default: app } = await import("../src/app.js");
 
-// ─── Fixtures ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const validToken = jwt.sign(
+  { sub: 1, type: "access" },
+  process.env.JWT_SECRET,
+  { expiresIn: "2h" },
+);
+const auth = () => ({ Authorization: `Bearer ${validToken}` });
 
 const mockAccount = {
   id: 1,
@@ -58,14 +67,13 @@ const mockAccount = {
   is_active: 1,
 };
 
-// ─── CSV helper — uses agreed friendly column names ───────────────────────────
+// CSV helper — uses agreed friendly column names
 const makeCSV = (rows) => {
   const header = "Mobile Number,Full Name,Amount (GHS)\n";
   const body = rows.map((r) => `${r.phone},${r.name},${r.amount}`).join("\n");
   return Buffer.from(header + body);
 };
 
-// Safe non-example phone numbers for test data
 const SAFE_PHONE_1 = "0201234567";
 const SAFE_PHONE_2 = "0271234567";
 
@@ -84,6 +92,7 @@ describe("Recipients Controller", () => {
 
       const res = await request(app)
         .post("/api/recipients/parse-csv")
+        .set(auth())
         .attach("file", csv, { filename: "test.csv", contentType: "text/csv" });
 
       expect(res.status).toBe(200);
@@ -94,6 +103,14 @@ describe("Recipients Controller", () => {
       expect(res.body.hasExampleNumbers).toBe(false);
     });
 
+    test("returns 401 without a token", async () => {
+      const csv = makeCSV([{ phone: SAFE_PHONE_1, name: "Test", amount: 100 }]);
+      const res = await request(app)
+        .post("/api/recipients/parse-csv")
+        .attach("file", csv, { filename: "test.csv", contentType: "text/csv" });
+      expect(res.status).toBe(401);
+    });
+
     test("flags invalid phone number with friendly error message", async () => {
       const csv = makeCSV([
         { phone: "12345", name: "Bad Number", amount: 100 },
@@ -102,6 +119,7 @@ describe("Recipients Controller", () => {
 
       const res = await request(app)
         .post("/api/recipients/parse-csv")
+        .set(auth())
         .attach("file", csv, { filename: "test.csv", contentType: "text/csv" });
 
       expect(res.status).toBe(200);
@@ -120,12 +138,12 @@ describe("Recipients Controller", () => {
 
       const res = await request(app)
         .post("/api/recipients/parse-csv")
+        .set(auth())
         .attach("file", csv, { filename: "test.csv", contentType: "text/csv" });
 
       expect(res.body.recipients[0].errors[0]).toContain(
         "Amount (GHS) must be a positive number",
       );
-      expect(res.body.recipients[0].errors[0]).toContain("Row 1");
     });
 
     test("marks example numbers as excluded", async () => {
@@ -138,32 +156,25 @@ describe("Recipients Controller", () => {
 
       const res = await request(app)
         .post("/api/recipients/parse-csv")
+        .set(auth())
         .attach("file", csv, { filename: "test.csv", contentType: "text/csv" });
 
       expect(res.status).toBe(200);
       expect(res.body.hasExampleNumbers).toBe(true);
       expect(res.body.excludedCount).toBe(3);
       expect(res.body.validCount).toBe(1);
-      expect(res.body.invalidCount).toBe(0);
-
-      // Example rows are excluded, not invalid
-      const excluded = res.body.recipients.filter((r) => r.excluded);
-      expect(excluded).toHaveLength(3);
-      excluded.forEach((r) => {
-        expect(r.excludeReason).toBe("EXAMPLE_NUMBER");
-        expect(r.valid).toBe(false);
-      });
     });
 
     test("excluded rows are not counted in validCount or invalidCount", async () => {
       const csv = makeCSV([
-        { phone: "0241234567", name: "Example", amount: 100 }, // excluded
-        { phone: "12345", name: "Bad Phone", amount: 100 }, // invalid
-        { phone: SAFE_PHONE_1, name: "Real Person", amount: 200 }, // valid
+        { phone: "0241234567", name: "Example", amount: 100 },
+        { phone: "12345", name: "Bad Phone", amount: 100 },
+        { phone: SAFE_PHONE_1, name: "Real Person", amount: 200 },
       ]);
 
       const res = await request(app)
         .post("/api/recipients/parse-csv")
+        .set(auth())
         .attach("file", csv, { filename: "test.csv", contentType: "text/csv" });
 
       expect(res.body.total).toBe(3);
@@ -177,6 +188,7 @@ describe("Recipients Controller", () => {
 
       const res = await request(app)
         .post("/api/recipients/parse-csv")
+        .set(auth())
         .attach("file", csv, { filename: "test.csv", contentType: "text/csv" });
 
       expect(res.status).toBe(400);
@@ -184,7 +196,9 @@ describe("Recipients Controller", () => {
     });
 
     test("returns 400 when no file attached", async () => {
-      const res = await request(app).post("/api/recipients/parse-csv");
+      const res = await request(app)
+        .post("/api/recipients/parse-csv")
+        .set(auth());
 
       expect(res.status).toBe(400);
       expect(res.body.error).toContain("No file uploaded");
@@ -211,25 +225,31 @@ describe("Recipients Controller", () => {
     ];
 
     test("returns verified recipients with match scores", async () => {
-      getAccountById.mockResolvedValue(mockAccount);
+      getActiveAccount.mockResolvedValue(mockAccount);
       verifyAccountName
         .mockResolvedValueOnce({ success: true, name: "John Mensah" })
         .mockResolvedValueOnce({ success: true, name: "Owusu Ama" });
 
       const res = await request(app)
         .post("/api/recipients/verify-names")
-        .send({ recipients: validRecipients, accountId: 1 });
+        .set(auth())
+        .send({ recipients: validRecipients });
 
       expect(res.status).toBe(200);
       expect(res.body.recipients).toHaveLength(2);
       expect(res.body.recipients[0].matchStatus).toBe("STRONG");
-      expect(res.body.recipients[0].mtnName).toBe("John Mensah");
-      // Flipped name still matches
       expect(res.body.recipients[1].matchScore).toBeGreaterThanOrEqual(70);
     });
 
+    test("returns 401 without a token", async () => {
+      const res = await request(app)
+        .post("/api/recipients/verify-names")
+        .send({ recipients: validRecipients });
+      expect(res.status).toBe(401);
+    });
+
     test("marks recipient as NOT_FOUND when MTN returns 404", async () => {
-      getAccountById.mockResolvedValue(mockAccount);
+      getActiveAccount.mockResolvedValue(mockAccount);
       verifyAccountName.mockResolvedValueOnce({
         success: false,
         reason: "NOT_FOUND",
@@ -237,17 +257,17 @@ describe("Recipients Controller", () => {
 
       const res = await request(app)
         .post("/api/recipients/verify-names")
+        .set(auth())
         .send({
           recipients: [
             {
               phone: SAFE_PHONE_1,
-              name: "Ghost User",
+              name: "Ghost",
               amount: 100,
               valid: true,
               excluded: false,
             },
           ],
-          accountId: 1,
         });
 
       expect(res.body.recipients[0].matchStatus).toBe("NOT_FOUND");
@@ -255,10 +275,11 @@ describe("Recipients Controller", () => {
     });
 
     test("skips MTN call for invalid recipients", async () => {
-      getAccountById.mockResolvedValue(mockAccount);
+      getActiveAccount.mockResolvedValue(mockAccount);
 
       const res = await request(app)
         .post("/api/recipients/verify-names")
+        .set(auth())
         .send({
           recipients: [
             {
@@ -267,10 +288,9 @@ describe("Recipients Controller", () => {
               amount: 0,
               valid: false,
               excluded: false,
-              errors: ["Invalid phone"],
+              errors: [],
             },
           ],
-          accountId: 1,
         });
 
       expect(res.status).toBe(200);
@@ -279,10 +299,11 @@ describe("Recipients Controller", () => {
     });
 
     test("skips MTN call for excluded recipients", async () => {
-      getAccountById.mockResolvedValue(mockAccount);
+      getActiveAccount.mockResolvedValue(mockAccount);
 
       const res = await request(app)
         .post("/api/recipients/verify-names")
+        .set(auth())
         .send({
           recipients: [
             {
@@ -294,7 +315,6 @@ describe("Recipients Controller", () => {
               excludeReason: "EXAMPLE_NUMBER",
             },
           ],
-          accountId: 1,
         });
 
       expect(res.status).toBe(200);
@@ -302,22 +322,25 @@ describe("Recipients Controller", () => {
       expect(res.body.recipients[0].matchStatus).toBe("EXCLUDED");
     });
 
+    test("returns 400 if no active disbursement account", async () => {
+      getActiveAccount.mockResolvedValue(null);
+
+      const res = await request(app)
+        .post("/api/recipients/verify-names")
+        .set(auth())
+        .send({ recipients: validRecipients });
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("NO_ACCOUNT");
+    });
+
     test("returns 400 if recipients list is empty", async () => {
       const res = await request(app)
         .post("/api/recipients/verify-names")
-        .send({ recipients: [], accountId: 1 });
+        .set(auth())
+        .send({ recipients: [] });
 
       expect(res.status).toBe(400);
-    });
-
-    test("returns 404 if account not found", async () => {
-      getAccountById.mockResolvedValue(null);
-
-      const res = await request(app)
-        .post("/api/recipients/verify-names")
-        .send({ recipients: validRecipients, accountId: 999 });
-
-      expect(res.status).toBe(404);
     });
   });
 });

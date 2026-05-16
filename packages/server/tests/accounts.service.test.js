@@ -1,47 +1,47 @@
 import { jest } from "@jest/globals";
 
-// Mock axios
+// ─── Mocks ────────────────────────────────────────────────────────────────────
+
 jest.unstable_mockModule("axios", () => ({
-  default: {
-    post: jest.fn(),
-    get: jest.fn(),
-  },
+  default: { post: jest.fn(), get: jest.fn() },
 }));
 
-// Mock database pool
 jest.unstable_mockModule("../src/config/database.js", () => ({
   default: { query: jest.fn() },
 }));
 
+// ─── Imports (after mocks) ────────────────────────────────────────────────────
+
 const { default: axios } = await import("axios");
 const { default: pool } = await import("../src/config/database.js");
 const { encrypt, decrypt } = await import("../src/utils/encryption.js");
-const { createAccount, getAllAccounts, deleteAccount } =
+const { createAccount, getUserAccount, deleteAccount } =
   await import("../src/modules/momo/accounts.service.js");
 
-// ─── MTN provisioning mock responses ─────────────────
+// ─── MTN provisioning mock ────────────────────────────────────────────────────
+
 const mockProvisionSuccess = () => {
   axios.post
-    .mockResolvedValueOnce({ status: 201, data: {} }) // create API user
-    .mockResolvedValueOnce({ status: 201, data: { apiKey: "mock-api-key" } }); // get API key
+    .mockResolvedValueOnce({ status: 201, data: {} })
+    .mockResolvedValueOnce({ status: 201, data: { apiKey: "mock-api-key" } });
 };
 
-describe("Accounts Service", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
+// ─── Tests ────────────────────────────────────────────────────────────────────
 
-  // ── Create Account ──────────────────────────────────
+describe("Accounts Service", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  // ── createAccount ───────────────────────────────────
   describe("createAccount", () => {
     test("provisions with MTN and saves encrypted credentials", async () => {
-      // No existing account
       pool.query
-        .mockResolvedValueOnce([[]]) // duplicate check
+        .mockResolvedValueOnce([[]]) // user account check — none exists
+        .mockResolvedValueOnce([[]]) // duplicate number check — none
         .mockResolvedValueOnce([{ insertId: 1 }]) // insert
         .mockResolvedValueOnce([
+          // getAccountById
           [
             {
-              // getAccountById
               id: 1,
               label: "Main Agent",
               account_number: "0241234567",
@@ -57,48 +57,69 @@ describe("Accounts Service", () => {
       mockProvisionSuccess();
 
       const account = await createAccount({
+        userId: 1,
         label: "Main Agent",
         accountNumber: "0241234567",
         environment: "sandbox",
       });
 
-      // MTN was called twice (create user + get key)
+      // MTN called twice
       expect(axios.post).toHaveBeenCalledTimes(2);
 
-      // Credentials saved to DB — verify insert was called
-      const insertCall = pool.query.mock.calls[1];
+      // Insert is the 3rd query call (index 2)
+      const insertCall = pool.query.mock.calls[2];
       const insertValues = insertCall[1];
 
-      // api_user and api_key in DB must not be plain text
-      expect(insertValues[2]).not.toBe("provisioned-uuid");
-      expect(insertValues[3]).not.toBe("mock-api-key");
+      // userId is first value
+      expect(insertValues[0]).toBe(1);
 
-      // But they must be decryptable
-      expect(decrypt(insertValues[2])).toBeDefined();
+      // api_user and api_key must not be plain text
+      expect(insertValues[3]).not.toBe("provisioned-uuid");
+      expect(insertValues[4]).not.toBe("mock-api-key");
+
+      // Must be decryptable
       expect(decrypt(insertValues[3])).toBeDefined();
+      expect(decrypt(insertValues[4])).toBeDefined();
 
       expect(account.id).toBe(1);
     });
 
-    test("throws DUPLICATE_ACCOUNT if number already exists", async () => {
-      pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // existing account found
+    test("throws ACCOUNT_EXISTS if user already has an account", async () => {
+      pool.query.mockResolvedValueOnce([[{ id: 1 }]]); // user already has account
 
       await expect(
         createAccount({
+          userId: 1,
           label: "Duplicate",
+          accountNumber: "0241234567",
+          environment: "sandbox",
+        }),
+      ).rejects.toThrow("ACCOUNT_EXISTS");
+
+      expect(axios.post).not.toHaveBeenCalled();
+    });
+
+    test("throws DUPLICATE_ACCOUNT if account number already registered", async () => {
+      pool.query
+        .mockResolvedValueOnce([[]]) // user account check — none
+        .mockResolvedValueOnce([[{ id: 2 }]]); // number already exists globally
+
+      await expect(
+        createAccount({
+          userId: 1,
+          label: "Dup Number",
           accountNumber: "0241234567",
           environment: "sandbox",
         }),
       ).rejects.toThrow("DUPLICATE_ACCOUNT");
 
-      // MTN should never be called
       expect(axios.post).not.toHaveBeenCalled();
     });
   });
 
-  // ── Get All Accounts ────────────────────────────────
-  describe("getAllAccounts", () => {
-    test("returns list of accounts without credentials", async () => {
+  // ── getUserAccount ──────────────────────────────────
+  describe("getUserAccount", () => {
+    test("returns the user's account without credentials", async () => {
       pool.query.mockResolvedValueOnce([
         [
           {
@@ -107,35 +128,38 @@ describe("Accounts Service", () => {
             account_number: "0241234567",
             is_active: 1,
           },
-          {
-            id: 2,
-            label: "Second Agent",
-            account_number: "0551234567",
-            is_active: 1,
-          },
         ],
       ]);
 
-      const accounts = await getAllAccounts();
-      expect(accounts).toHaveLength(2);
-      expect(accounts[0].label).toBe("Main Agent");
+      const account = await getUserAccount(1);
+
+      expect(account.label).toBe("Main Agent");
+      expect(account.api_user).toBeUndefined(); // credentials not returned
+    });
+
+    test("returns null if user has no account", async () => {
+      pool.query.mockResolvedValueOnce([[]]);
+
+      const account = await getUserAccount(1);
+
+      expect(account).toBeNull();
     });
   });
 
-  // ── Delete Account ──────────────────────────────────
+  // ── deleteAccount ───────────────────────────────────
   describe("deleteAccount", () => {
     test("throws ACCOUNT_IN_USE if account has batches", async () => {
       pool.query.mockResolvedValueOnce([[{ id: 5 }]]); // batch found
 
-      await expect(deleteAccount(1)).rejects.toThrow("ACCOUNT_IN_USE");
+      await expect(deleteAccount(1, 1)).rejects.toThrow("ACCOUNT_IN_USE");
     });
 
     test("deletes account if no batches exist", async () => {
       pool.query
         .mockResolvedValueOnce([[]]) // no batches
-        .mockResolvedValueOnce([{}]); // delete query
+        .mockResolvedValueOnce([{}]); // delete
 
-      await deleteAccount(1);
+      await deleteAccount(1, 1);
       expect(pool.query).toHaveBeenCalledTimes(2);
     });
   });

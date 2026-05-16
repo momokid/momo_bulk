@@ -33,6 +33,7 @@ jest.unstable_mockModule("../src/modules/momo/momo.service.js", () => ({
 
 jest.unstable_mockModule("../src/modules/momo/accounts.service.js", () => ({
   getAccountById: jest.fn(),
+  getActiveAccount: jest.fn(),
 }));
 
 const { verifyAccountName } =
