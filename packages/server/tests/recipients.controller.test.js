@@ -1,13 +1,7 @@
 import { jest } from "@jest/globals";
 import request from "supertest";
 
-jest.unstable_mockModule("../src/modules/auth/auth.service.js", () => ({
-  register: jest.fn(),
-  login: jest.fn(),
-  refreshToken: jest.fn(),
-  logout: jest.fn(),
-  acceptTerms: jest.fn(),
-}));
+// ─── Mocks ────────────────────────────────────────────────────────────────────
 
 jest.unstable_mockModule(
   "../src/modules/transfers/transfers.service.js",
@@ -29,11 +23,24 @@ jest.unstable_mockModule("../src/config/database.js", () => ({
 
 jest.unstable_mockModule("../src/modules/momo/momo.service.js", () => ({
   verifyAccountName: jest.fn(),
+  disburse: jest.fn(),
+  getTransferStatus: jest.fn(),
+  clearTokenCache: jest.fn(),
 }));
 
 jest.unstable_mockModule("../src/modules/momo/accounts.service.js", () => ({
   getAccountById: jest.fn(),
 }));
+
+jest.unstable_mockModule("../src/modules/auth/auth.service.js", () => ({
+  register: jest.fn(),
+  login: jest.fn(),
+  refreshToken: jest.fn(),
+  logout: jest.fn(),
+  acceptTerms: jest.fn(),
+}));
+
+// ─── Imports (after mocks) ────────────────────────────────────────────────────
 
 const { verifyAccountName } =
   await import("../src/modules/momo/momo.service.js");
@@ -41,30 +48,38 @@ const { getAccountById } =
   await import("../src/modules/momo/accounts.service.js");
 const { default: app } = await import("../src/app.js");
 
+// ─── Fixtures ─────────────────────────────────────────────────────────────────
+
 const mockAccount = {
   id: 1,
   label: "Main Agent",
-  account_number: "0241234567",
+  account_number: "0201234567",
   environment: "sandbox",
   is_active: 1,
 };
 
-// ─── Helper: build CSV buffer ─────────────────────────
+// ─── CSV helper — uses agreed friendly column names ───────────────────────────
 const makeCSV = (rows) => {
-  const header = "phone,amount,name\n";
-  const body = rows.map((r) => `${r.phone},${r.amount},${r.name}`).join("\n");
+  const header = "Mobile Number,Full Name,Amount (GHS)\n";
+  const body = rows.map((r) => `${r.phone},${r.name},${r.amount}`).join("\n");
   return Buffer.from(header + body);
 };
+
+// Safe non-example phone numbers for test data
+const SAFE_PHONE_1 = "0201234567";
+const SAFE_PHONE_2 = "0271234567";
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("Recipients Controller", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  // ── CSV Parsing ──────────────────────────────────
+  // ── CSV Parsing ──────────────────────────────────────
   describe("POST /api/recipients/parse-csv", () => {
     test("parses valid CSV and returns recipients", async () => {
       const csv = makeCSV([
-        { phone: "0241234567", amount: 500, name: "John Mensah" },
-        { phone: "0551234567", amount: 200, name: "Ama Owusu" },
+        { phone: SAFE_PHONE_1, name: "John Mensah", amount: 500 },
+        { phone: SAFE_PHONE_2, name: "Ama Owusu", amount: 200 },
       ]);
 
       const res = await request(app)
@@ -75,12 +90,14 @@ describe("Recipients Controller", () => {
       expect(res.body.total).toBe(2);
       expect(res.body.validCount).toBe(2);
       expect(res.body.invalidCount).toBe(0);
+      expect(res.body.excludedCount).toBe(0);
+      expect(res.body.hasExampleNumbers).toBe(false);
     });
 
-    test("flags invalid phone number", async () => {
+    test("flags invalid phone number with friendly error message", async () => {
       const csv = makeCSV([
-        { phone: "12345", amount: 100, name: "Bad Number" },
-        { phone: "0241234567", amount: 200, name: "Good Number" },
+        { phone: "12345", name: "Bad Number", amount: 100 },
+        { phone: SAFE_PHONE_1, name: "Good Number", amount: 200 },
       ]);
 
       const res = await request(app)
@@ -90,27 +107,73 @@ describe("Recipients Controller", () => {
       expect(res.status).toBe(200);
       expect(res.body.validCount).toBe(1);
       expect(res.body.invalidCount).toBe(1);
-      expect(res.body.recipients[0].errors).toContain(
-        "Invalid phone number format",
+      expect(res.body.recipients[0].errors[0]).toContain(
+        "Mobile Number format is invalid",
       );
+      expect(res.body.recipients[0].errors[0]).toContain("Row 1");
     });
 
-    test("flags zero amount", async () => {
+    test("flags zero amount with friendly error message", async () => {
       const csv = makeCSV([
-        { phone: "0241234567", amount: 0, name: "John Mensah" },
+        { phone: SAFE_PHONE_1, name: "John Mensah", amount: 0 },
       ]);
 
       const res = await request(app)
         .post("/api/recipients/parse-csv")
         .attach("file", csv, { filename: "test.csv", contentType: "text/csv" });
 
-      expect(res.body.recipients[0].errors).toContain(
-        "Amount must be a positive number",
+      expect(res.body.recipients[0].errors[0]).toContain(
+        "Amount (GHS) must be a positive number",
       );
+      expect(res.body.recipients[0].errors[0]).toContain("Row 1");
+    });
+
+    test("marks example numbers as excluded", async () => {
+      const csv = makeCSV([
+        { phone: "0241234567", name: "Example One", amount: 100 },
+        { phone: "0551234567", name: "Example Two", amount: 200 },
+        { phone: "0261234567", name: "Example Three", amount: 300 },
+        { phone: SAFE_PHONE_1, name: "Real Person", amount: 400 },
+      ]);
+
+      const res = await request(app)
+        .post("/api/recipients/parse-csv")
+        .attach("file", csv, { filename: "test.csv", contentType: "text/csv" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.hasExampleNumbers).toBe(true);
+      expect(res.body.excludedCount).toBe(3);
+      expect(res.body.validCount).toBe(1);
+      expect(res.body.invalidCount).toBe(0);
+
+      // Example rows are excluded, not invalid
+      const excluded = res.body.recipients.filter((r) => r.excluded);
+      expect(excluded).toHaveLength(3);
+      excluded.forEach((r) => {
+        expect(r.excludeReason).toBe("EXAMPLE_NUMBER");
+        expect(r.valid).toBe(false);
+      });
+    });
+
+    test("excluded rows are not counted in validCount or invalidCount", async () => {
+      const csv = makeCSV([
+        { phone: "0241234567", name: "Example", amount: 100 }, // excluded
+        { phone: "12345", name: "Bad Phone", amount: 100 }, // invalid
+        { phone: SAFE_PHONE_1, name: "Real Person", amount: 200 }, // valid
+      ]);
+
+      const res = await request(app)
+        .post("/api/recipients/parse-csv")
+        .attach("file", csv, { filename: "test.csv", contentType: "text/csv" });
+
+      expect(res.body.total).toBe(3);
+      expect(res.body.excludedCount).toBe(1);
+      expect(res.body.invalidCount).toBe(1);
+      expect(res.body.validCount).toBe(1);
     });
 
     test("returns 400 for empty CSV", async () => {
-      const csv = Buffer.from("phone,amount,name\n");
+      const csv = Buffer.from("Mobile Number,Full Name,Amount (GHS)\n");
 
       const res = await request(app)
         .post("/api/recipients/parse-csv")
@@ -128,11 +191,23 @@ describe("Recipients Controller", () => {
     });
   });
 
-  // ── Name Verification ────────────────────────────
+  // ── Name Verification ────────────────────────────────
   describe("POST /api/recipients/verify-names", () => {
     const validRecipients = [
-      { phone: "0241234567", name: "John Mensah", amount: 500, valid: true },
-      { phone: "0551234567", name: "Ama Owusu", amount: 200, valid: true },
+      {
+        phone: SAFE_PHONE_1,
+        name: "John Mensah",
+        amount: 500,
+        valid: true,
+        excluded: false,
+      },
+      {
+        phone: SAFE_PHONE_2,
+        name: "Ama Owusu",
+        amount: 200,
+        valid: true,
+        excluded: false,
+      },
     ];
 
     test("returns verified recipients with match scores", async () => {
@@ -165,10 +240,11 @@ describe("Recipients Controller", () => {
         .send({
           recipients: [
             {
-              phone: "0241234567",
+              phone: SAFE_PHONE_1,
               name: "Ghost User",
               amount: 100,
               valid: true,
+              excluded: false,
             },
           ],
           accountId: 1,
@@ -190,6 +266,7 @@ describe("Recipients Controller", () => {
               name: "Bad",
               amount: 0,
               valid: false,
+              excluded: false,
               errors: ["Invalid phone"],
             },
           ],
@@ -199,6 +276,30 @@ describe("Recipients Controller", () => {
       expect(res.status).toBe(200);
       expect(verifyAccountName).not.toHaveBeenCalled();
       expect(res.body.recipients[0].matchStatus).toBe("INVALID");
+    });
+
+    test("skips MTN call for excluded recipients", async () => {
+      getAccountById.mockResolvedValue(mockAccount);
+
+      const res = await request(app)
+        .post("/api/recipients/verify-names")
+        .send({
+          recipients: [
+            {
+              phone: "0241234567",
+              name: "Example",
+              amount: 100,
+              valid: false,
+              excluded: true,
+              excludeReason: "EXAMPLE_NUMBER",
+            },
+          ],
+          accountId: 1,
+        });
+
+      expect(res.status).toBe(200);
+      expect(verifyAccountName).not.toHaveBeenCalled();
+      expect(res.body.recipients[0].matchStatus).toBe("EXCLUDED");
     });
 
     test("returns 400 if recipients list is empty", async () => {

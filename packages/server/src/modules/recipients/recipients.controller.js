@@ -1,3 +1,5 @@
+// packages/server/src/modules/recipients/recipients.controller.js
+
 import csv from "csv-parser";
 import { Readable } from "stream";
 import { verifyAccountName } from "../momo/momo.service.js";
@@ -7,33 +9,70 @@ import { matchNames } from "../../utils/fuzzyMatch.js";
 // ─── Delay helper ─────────────────────────────────────
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// ─── Example numbers from the CSV template ────────────
+// Rows containing these are excluded with a warning — never sent to MTN
+const EXAMPLE_NUMBERS = ["0241234567", "0551234567", "0261234567"];
+
+// ─── Map friendly CSV column headers to internal keys ─
+// Accepts: "Mobile Number", "Full Name", "Amount (GHS)"
+// Falls back to lowercase header for unknown columns
+const mapHeader = ({ header }) => {
+  const h = header.trim().toLowerCase();
+  const map = {
+    "mobile number": "phone",
+    "full name": "name",
+    "amount (ghs)": "amount",
+  };
+  return map[h] ?? h;
+};
+
 // ─── Validate a single recipient row ─────────────────
 const validateRow = (row, index) => {
+  const rowNum = index + 1; // 1-based for user-facing messages
   const errors = [];
 
   const phone = (row.phone || "").toString().replace(/\s+/g, "");
   const name = (row.name || "").toString().trim();
   const amount = parseFloat(row.amount);
 
-  if (!/^0[0-9]{9}$/.test(phone)) {
-    errors.push("Invalid phone number format");
+  // Check for example numbers before any other validation
+  if (EXAMPLE_NUMBERS.includes(phone)) {
+    return {
+      index,
+      rowNum,
+      phone,
+      name,
+      amount: isNaN(amount) ? 0 : amount,
+      errors: [],
+      valid: false,
+      excluded: true,
+      excludeReason: "EXAMPLE_NUMBER",
+    };
+  }
+
+  if (!phone) {
+    errors.push(`Row ${rowNum} — Mobile Number is required`);
+  } else if (!/^0[0-9]{9}$/.test(phone)) {
+    errors.push(`Row ${rowNum} — Mobile Number format is invalid`);
   }
 
   if (!name) {
-    errors.push("Name is required");
+    errors.push(`Row ${rowNum} — Full Name is required`);
   }
 
   if (isNaN(amount) || amount <= 0) {
-    errors.push("Amount must be a positive number");
+    errors.push(`Row ${rowNum} — Amount (GHS) must be a positive number`);
   }
 
   return {
     index,
+    rowNum,
     phone,
     name,
-    amount,
+    amount: isNaN(amount) ? 0 : amount,
     errors,
     valid: errors.length === 0,
+    excluded: false,
   };
 };
 
@@ -49,7 +88,7 @@ export const parseCSV = async (req, res) => {
 
     await new Promise((resolve, reject) => {
       readable
-        .pipe(csv({ mapHeaders: ({ header }) => header.trim().toLowerCase() }))
+        .pipe(csv({ mapHeaders: mapHeader }))
         .on("data", (row) => results.push(row))
         .on("end", resolve)
         .on("error", reject);
@@ -60,21 +99,26 @@ export const parseCSV = async (req, res) => {
     }
 
     if (results.length > 500) {
-      return res.status(400).json({
-        error: "Maximum 500 recipients per batch",
-      });
+      return res
+        .status(400)
+        .json({ error: "Maximum 500 recipients per batch" });
     }
 
-    // Validate every row
     const validated = results.map((row, index) => validateRow(row, index));
 
+    const excludedCount = validated.filter((r) => r.excluded).length;
     const validCount = validated.filter((r) => r.valid).length;
-    const invalidCount = validated.filter((r) => !r.valid).length;
+    const invalidCount = validated.filter(
+      (r) => !r.valid && !r.excluded
+    ).length;
+    const hasExampleNumbers = excludedCount > 0;
 
     return res.json({
       total: validated.length,
       validCount,
       invalidCount,
+      excludedCount,
+      hasExampleNumbers,
       recipients: validated,
     });
   } catch (error) {
@@ -110,6 +154,17 @@ export const verifyNames = async (req, res) => {
     const verified = [];
 
     for (const recipient of recipients) {
+      // Skip excluded rows — never sent to MTN
+      if (recipient.excluded) {
+        verified.push({
+          ...recipient,
+          mtnName: null,
+          matchScore: 0,
+          matchStatus: "EXCLUDED",
+        });
+        continue;
+      }
+
       // Skip already invalid rows — no point calling MTN for them
       if (!recipient.valid) {
         verified.push({
