@@ -16,8 +16,9 @@ const getAccessToken = async (account) => {
     return cached.token;
   }
 
-  const apiUser = decrypt(account.api_user);
-  const apiKey = decrypt(account.api_key);
+  const apiUser = account.api_user;
+  const apiKey = account.api_key;
+
   const credentials = Buffer.from(`${apiUser}:${apiKey}`).toString("base64");
 
   const response = await axios.post(
@@ -46,10 +47,15 @@ const getAccessToken = async (account) => {
 // ─── Verify Account Holder Name ──────────────────────
 export const verifyAccountName = async (account, phoneNumber) => {
   try {
+    // Normalize Ghana numbers to international format (0XXXXXXXXX → 233XXXXXXXXX)
+    const msisdn = phoneNumber.startsWith("0")
+      ? `233${phoneNumber.slice(1)}`
+      : phoneNumber;
+
     const token = await getAccessToken(account);
 
     const response = await axios.get(
-      `${env.mtn.baseUrl}/disbursement/v1_0/accountholder/msisdn/${phoneNumber}/basicuserinfo`,
+      `${env.mtn.baseUrl}/disbursement/v1_0/accountholder/msisdn/${msisdn}/basicuserinfo`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -59,12 +65,28 @@ export const verifyAccountName = async (account, phoneNumber) => {
       },
     );
 
+    const fullName =
+      response.data.name ||
+      `${response.data.given_name || ""} ${response.data.family_name || ""}`.trim();
+
+    return {
+      success: true,
+      name: fullName,
+    };
+
     return {
       success: true,
       name: response.data.name,
     };
   } catch (error) {
     const status = error.response?.status;
+
+    // Temporary: log full error for debugging
+    console.error("verifyAccountName error:", {
+      status,
+      data: error.response?.data,
+      message: error.message,
+    });
 
     if (status === 404) {
       return { success: false, reason: "NOT_FOUND" };
@@ -84,6 +106,9 @@ export const disburse = async (
   { phone, amount, externalId, payerMessage, payeeNote },
 ) => {
   try {
+    // Normalize Ghana numbers to international format (0XXXXXXXXX → 233XXXXXXXXX)
+    const msisdn = phone.startsWith("0") ? `233${phone.slice(1)}` : phone;
+
     const token = await getAccessToken(account);
     const referenceId = uuidv4();
 
@@ -95,7 +120,7 @@ export const disburse = async (
         externalId,
         payee: {
           partyIdType: "MSISDN",
-          partyId: phone,
+          partyId: msisdn,
         },
         payerMessage: payerMessage || "Payment",
         payeeNote: payeeNote || "Payment",
