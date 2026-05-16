@@ -10,6 +10,7 @@ import recipientsRoutes from "./modules/recipients/recipients.routes.js";
 import transfersRoutes from "./modules/transfers/transfers.routes.js";
 import reportsRoutes from "./modules/reports/reports.routes.js";
 import authRoutes from "./modules/auth/auth.routes.js";
+import senderNumbersRoutes from "./modules/senderNumbers/senderNumbers.routes.js";
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use("/api/sender", senderRoutes);
 app.use("/api/recipients", recipientsRoutes);
 app.use("/api/transfers", transfersRoutes);
 app.use("/api/reports", reportsRoutes);
+app.use("/api/sender-numbers", senderNumbersRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────
 app.use((req, res) => {
