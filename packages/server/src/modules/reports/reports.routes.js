@@ -1,5 +1,6 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
+import { authenticate } from "../../middleware/authenticate.js";
 import * as controller from "./reports.controller.js";
 
 const router = Router();
@@ -10,14 +11,14 @@ const reportLimiter = rateLimit({
   message: { error: "Too many report requests. Please wait a moment." },
 });
 
+router.use(authenticate);
+
 router.get(
   "/batch/:batchId/advice/:transferId",
   reportLimiter,
   controller.singleAdvice,
 );
-
 router.get("/batch/:batchId/advice", reportLimiter, controller.batchAdvice);
-
 router.get("/batch/:batchId/export", reportLimiter, controller.exportBatchCSV);
 
 export default router;

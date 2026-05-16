@@ -83,26 +83,28 @@ export default function BatchDetail() {
     ['pending', 'processing'].includes(t.status)).length;
 
   // ── Download handlers ─────────────────────────────────
-  const handleBatchPDF = () =>
-    downloadBlob(
-      `/api/reports/batch/${batchId}/pdf`,
-      `batch-${batchId}-advice.pdf`,
-      setPdfLoading,
-    );
+const handleBatchPDF = () =>
+  downloadBlob(
+    `/api/reports/batch/${batchId}/advice`,
+    `batch-${batchId}-advice.pdf`,
+    setPdfLoading,
+  );
 
-  const handleCSV = () =>
-    downloadBlob(
-      `/api/reports/batch/${batchId}/csv`,
-      `batch-${batchId}-export.csv`,
-      setCsvLoading,
-    );
+// CSV — was /csv, should be /export
+const handleCSV = () =>
+  downloadBlob(
+    `/api/reports/batch/${batchId}/export`,
+    `batch-${batchId}-export.csv`,
+    setCsvLoading,
+  );
 
-  const handleSinglePDF = (transferId) =>
-    downloadBlob(
-      `/api/reports/batch/${batchId}/transfer/${transferId}/pdf`,
-      `advice-${transferId}.pdf`,
-      (v) => setRowLoading(v ? transferId : null),
-    );
+// Single transfer PDF — was /transfer/:id/pdf, should be /advice/:id
+const handleSinglePDF = (transferId) =>
+  downloadBlob(
+    `/api/reports/batch/${batchId}/advice/${transferId}`,
+    `advice-${transferId}.pdf`,
+    (v) => setRowLoading(v ? transferId : null),
+  );
 
   // ─────────────────────────────────────────────────────
   return (

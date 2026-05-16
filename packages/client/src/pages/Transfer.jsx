@@ -1,11 +1,11 @@
 // packages/client/src/pages/Transfer.jsx
 
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate }                 from 'react-router-dom';
-import { useQuery }                    from '@tanstack/react-query';
-import toast                           from 'react-hot-toast';
-import api                             from '../services/api.js';
-import { useAuth }                     from '../hooks/useAuth.jsx';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import api from '../services/api.js';
+import { useAuth } from '../hooks/useAuth.jsx';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -16,24 +16,24 @@ const fmt = (n) =>
   })}`;
 
 const SCORE_STYLES = {
-  STRONG:    'bg-green-100 text-green-700',
-  LIKELY:    'bg-yellow-100 text-yellow-700',
-  WEAK:      'bg-orange-100 text-orange-700',
-  NO_MATCH:  'bg-red-100 text-red-700',
+  STRONG: 'bg-green-100 text-green-700',
+  LIKELY: 'bg-yellow-100 text-yellow-700',
+  WEAK: 'bg-orange-100 text-orange-700',
+  NO_MATCH: 'bg-red-100 text-red-700',
   NOT_FOUND: 'bg-red-100 text-red-700',
-  EXCLUDED:  'bg-gray-100 text-gray-400',
-  INVALID:   'bg-gray-100 text-gray-400',
+  EXCLUDED: 'bg-gray-100 text-gray-400',
+  INVALID: 'bg-gray-100 text-gray-400',
   API_ERROR: 'bg-red-100 text-red-600',
 };
 
 const SCORE_LABELS = {
-  STRONG:    'Strong',
-  LIKELY:    'Likely',
-  WEAK:      'Weak',
-  NO_MATCH:  'No match',
+  STRONG: 'Strong',
+  LIKELY: 'Likely',
+  WEAK: 'Weak',
+  NO_MATCH: 'No match',
   NOT_FOUND: 'Not found',
-  EXCLUDED:  'Excluded',
-  INVALID:   'Invalid',
+  EXCLUDED: 'Excluded',
+  INVALID: 'Invalid',
   API_ERROR: 'Error',
 };
 
@@ -52,15 +52,15 @@ function ScoreBadge({ status }) {
 // ─── RecipientModal ───────────────────────────────────────────────────────────
 
 function RecipientModal({ open, recipient, onSave, onClose }) {
-  const [phone,  setPhone]  = useState('');
-  const [name,   setName]   = useState('');
+  const [phone, setPhone] = useState('');
+  const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
     if (open) {
-      setPhone(recipient?.phone   || '');
-      setName(recipient?.name    || '');
+      setPhone(recipient?.phone || '');
+      setName(recipient?.name || '');
       setAmount(recipient?.amount || '');
       setErrors({});
     }
@@ -135,9 +135,9 @@ function RecipientModal({ open, recipient, onSave, onClose }) {
 // ─── PayModal ─────────────────────────────────────────────────────────────────
 
 function PayModal({ open, mode, count, totalAmount, onConfirm, onClose }) {
-  const [password,  setPassword]  = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error,     setError]     = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (open) { setPassword(''); setError(''); setIsLoading(false); }
@@ -218,59 +218,59 @@ function PayModal({ open, mode, count, totalAmount, onConfirm, onClose }) {
 export default function Transfer() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const fileRef  = useRef(null);
+  const fileRef = useRef(null);
 
   // ── Step ──────────────────────────────────────────────
   const [step, setStep] = useState(1);
 
   // ── Section 1 ─────────────────────────────────────────
   const [senderNumberId, setSenderNumberId] = useState('');
-  const [reference,      setReference]      = useState('');
+  const [reference, setReference] = useState('');
 
   // ── Section 2 ─────────────────────────────────────────
-  const [recipients,    setRecipients]    = useState([]);
-  const [hasExampleNums,setHasExampleNums]= useState(false);
-  const [isVerifying,   setIsVerifying]   = useState(false);
-  const [isVerified,    setIsVerified]    = useState(false);
+  const [recipients, setRecipients] = useState([]);
+  const [hasExampleNums, setHasExampleNums] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
-  const [isExecuting,   setIsExecuting]   = useState(false);
+  const [isExecuting, setIsExecuting] = useState(false);
 
   // ── Modals ────────────────────────────────────────────
   const [recipientModal, setRecipientModal] = useState({ open: false, recipient: null });
-  const [deleteTarget,   setDeleteTarget]   = useState(null);
-  const [payModal,       setPayModal]       = useState({ open: false, mode: 'all', targetId: null });
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [payModal, setPayModal] = useState({ open: false, mode: 'all', targetId: null });
 
   // ── Queries ───────────────────────────────────────────
 
   // User's single disbursement account (auto-fetched, not selected)
   const { data: userAccount = null } = useQuery({
     queryKey: ['userAccount'],
-    queryFn:  () => api.get('/api/accounts').then((r) => r.data.account),
+    queryFn: () => api.get('/api/accounts').then((r) => r.data.account),
   });
 
   const { data: senderNumbers = [] } = useQuery({
     queryKey: ['senderNumbers'],
-    queryFn:  () => api.get('/api/sender-numbers').then((r) => r.data.senderNumbers || []),
+    queryFn: () => api.get('/api/sender-numbers').then((r) => r.data.senderNumbers || []),
   });
 
   // ── Derived ───────────────────────────────────────────
   const selectedSenderNumber = senderNumbers.find((s) => s.id === Number(senderNumberId));
 
-  const eligible       = recipients.filter((r) =>
+  const eligible = recipients.filter((r) =>
     !r.excluded && r.valid && ['STRONG', 'LIKELY', 'WEAK'].includes(r.matchStatus));
-  const approvedCount  = recipients.filter((r) => r.matchStatus === 'STRONG').length;
-  const reviewCount    = recipients.filter((r) => ['LIKELY', 'WEAK'].includes(r.matchStatus)).length;
+  const approvedCount = recipients.filter((r) => r.matchStatus === 'STRONG').length;
+  const reviewCount = recipients.filter((r) => ['LIKELY', 'WEAK'].includes(r.matchStatus)).length;
   const eligibleAmount = eligible.reduce((s, r) => s + Number(r.amount), 0);
 
   const payTarget = recipients.find((r) => r._id === payModal.targetId);
   const payAmount = payModal.mode === 'all' ? eligibleAmount : (payTarget?.amount || 0);
-  const payCount  = payModal.mode === 'all' ? eligible.length : 1;
+  const payCount = payModal.mode === 'all' ? eligible.length : 1;
 
   // ── Section 1: Continue ───────────────────────────────
   const handleContinue = () => {
-    if (!userAccount)     { toast.error('Set up a disbursement account in Settings first.'); return; }
-    if (!senderNumberId)  { toast.error('Select a sender number');   return; }
-    if (!reference.trim()){ toast.error('Enter a batch reference');  return; }
+    if (!userAccount) { toast.error('Set up a disbursement account in Settings first.'); return; }
+    if (!senderNumberId) { toast.error('Select a sender number'); return; }
+    if (!reference.trim()) { toast.error('Enter a batch reference'); return; }
     setStep(2);
   };
 
@@ -287,8 +287,8 @@ export default function Transfer() {
 
       const normalized = data.recipients.map((r) => ({
         ...r,
-        _id:        crypto.randomUUID(),
-        mtnName:    null,
+        _id: crypto.randomUUID(),
+        mtnName: null,
         matchScore: null,
         matchStatus: r.excluded ? 'EXCLUDED' : null,
       }));
@@ -312,9 +312,11 @@ export default function Transfer() {
   const handleAddRecipient = ({ phone, name, amount }) => {
     setRecipients((prev) => [
       ...prev,
-      { _id: crypto.randomUUID(), phone, name, amount, errors: [],
+      {
+        _id: crypto.randomUUID(), phone, name, amount, errors: [],
         valid: true, excluded: false, excludeReason: null,
-        mtnName: null, matchScore: null, matchStatus: null },
+        mtnName: null, matchScore: null, matchStatus: null
+      },
     ]);
     setRecipientModal({ open: false, recipient: null });
     setIsVerified(false);
@@ -326,8 +328,10 @@ export default function Transfer() {
     setRecipients((prev) =>
       prev.map((r) =>
         r._id === recipientModal.recipient._id
-          ? { ...r, phone, name, amount,
-              mtnName: null, matchScore: null, matchStatus: null }
+          ? {
+            ...r, phone, name, amount,
+            mtnName: null, matchScore: null, matchStatus: null
+          }
           : r,
       ),
     );
@@ -366,8 +370,10 @@ export default function Transfer() {
           if (r.excluded) return r;
           const res = resultMap.get(r._id);
           if (!res) return r;
-          return { ...r, mtnName: res.mtnName,
-            matchScore: res.matchScore, matchStatus: res.matchStatus };
+          return {
+            ...r, mtnName: res.mtnName,
+            matchScore: res.matchScore, matchStatus: res.matchStatus
+          };
         }),
       );
       setIsVerified(true);
@@ -389,11 +395,11 @@ export default function Transfer() {
 
     const { data: batchData } = await api.post('/api/transfers/batch', {
       senderNumberId: selectedSenderNumber.id,
-      reference:      reference.trim(),
-      senderNumber:   selectedSenderNumber.phone_number,
-      senderName:     selectedSenderNumber.mtn_name,
-      momoAccountId:  userAccount.id,   // auto-fetched, not user-selected
-      recipients:     recipientsToSend,
+      reference: reference.trim(),
+      senderNumber: selectedSenderNumber.phone_number,
+      senderName: selectedSenderNumber.mtn_name,
+      momoAccountId: userAccount.id,   // auto-fetched, not user-selected
+      recipients: recipientsToSend,
     });
 
     const batchId = batchData.batch.id;
@@ -572,6 +578,14 @@ export default function Transfer() {
               </h2>
 
               <div className="flex flex-wrap gap-2 ml-auto">
+                {/* Download template */}
+                <a
+                  href="/template.csv"
+                  download="momo-bulk-template.csv"
+                  className="px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-medium
+             text-gray-700 hover:bg-gray-50 transition">
+                  ↓ Template
+                </a>
                 <button
                   onClick={() => fileRef.current?.click()}
                   disabled={uploadLoading}
@@ -654,20 +668,20 @@ export default function Transfer() {
                     <tr className="border-b border-gray-100 bg-gray-50">
                       {['#', 'Mobile Number', 'Your Name', 'MTN Name', 'Score',
                         'Amount (GHS)', 'Actions'].map((h) => (
-                        <th key={h}
-                          className={`px-4 py-3 text-xs font-medium text-gray-500
+                          <th key={h}
+                            className={`px-4 py-3 text-xs font-medium text-gray-500
                                       ${h === 'Amount (GHS)' || h === 'Actions'
-                                        ? 'text-right' : 'text-left'}`}>
-                          {h}
-                        </th>
-                      ))}
+                                ? 'text-right' : 'text-left'}`}>
+                            {h}
+                          </th>
+                        ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {recipients.map((r, i) => {
                       const excluded = r.excluded;
-                      const invalid  = !r.valid && !r.excluded;
-                      const canPay   = isVerified &&
+                      const invalid = !r.valid && !r.excluded;
+                      const canPay = isVerified &&
                         ['STRONG', 'LIKELY', 'WEAK'].includes(r.matchStatus);
 
                       return (
@@ -712,8 +726,10 @@ export default function Transfer() {
                               {canPay && (
                                 <button
                                   onClick={() =>
-                                    setPayModal({ open: true, mode: 'single',
-                                      targetId: r._id })}
+                                    setPayModal({
+                                      open: true, mode: 'single',
+                                      targetId: r._id
+                                    })}
                                   className="text-xs font-semibold text-brand-600
                                              hover:text-brand-800 transition">
                                   Pay
