@@ -19,7 +19,8 @@ export const resetStuckTransfers = async () => {
 
 // ─── Create Batch ─────────────────────────────────────
 export const createBatch = async ({
-  username,
+  userId,
+  senderNumberId,
   reference,
   senderNumber,
   senderName,
@@ -42,11 +43,13 @@ export const createBatch = async ({
     // Insert batch
     const [batchResult] = await connection.query(
       `INSERT INTO batches
-        (username, momo_account_id, reference, sender_number, sender_name, total_recipients, total_amount, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'draft')`,
+        (user_id, momo_account_id, sender_number_id, reference, sender_number,
+         sender_name, total_recipients, total_amount, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft')`,
       [
-        username,
+        userId,
         momoAccountId,
+        senderNumberId || null,
         reference,
         senderNumber,
         senderName,
@@ -63,12 +66,12 @@ export const createBatch = async ({
 
       await connection.query(
         `INSERT INTO transfers
-          (batch_id, username, external_id, recipient_phone, recipient_name_input,
+          (user_id, batch_id, external_id, recipient_phone, recipient_name_input,
            recipient_name_mtn, match_score, amount, status)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
         [
+          userId,
           batchId,
-          username,
           externalId,
           recipient.phone,
           recipient.name,
@@ -80,7 +83,7 @@ export const createBatch = async ({
     }
 
     await connection.commit();
-    return getBatchById(batchId);
+    return getBatchById(batchId, userId);
   } catch (error) {
     await connection.rollback();
     throw error;
@@ -89,14 +92,14 @@ export const createBatch = async ({
   }
 };
 
-// ─── Get Batch By ID ──────────────────────────────────
-export const getBatchById = async (batchId) => {
+// ─── Get Batch By ID (scoped to user) ─────────────────
+export const getBatchById = async (batchId, userId) => {
   const [batches] = await pool.query(
     `SELECT b.*, ma.label AS account_label, ma.account_number
      FROM batches b
      LEFT JOIN momo_accounts ma ON b.momo_account_id = ma.id
-     WHERE b.id = ?`,
-    [batchId],
+     WHERE b.id = ? AND b.user_id = ?`,
+    [batchId, userId],
   );
 
   if (batches.length === 0) return null;
@@ -109,27 +112,27 @@ export const getBatchById = async (batchId) => {
   return { ...batches[0], transfers };
 };
 
-// ─── Get All Batches ──────────────────────────────────
-export const getAllBatches = async (username) => {
+// ─── Get All Batches (scoped to user) ─────────────────
+export const getAllBatches = async (userId) => {
   const [rows] = await pool.query(
     `SELECT b.*, ma.label AS account_label
      FROM batches b
      LEFT JOIN momo_accounts ma ON b.momo_account_id = ma.id
-     WHERE b.username = ?
+     WHERE b.user_id = ?
      ORDER BY b.created_at DESC`,
-    [username],
+    [userId],
   );
   return rows;
 };
 
 // ─── Execute Single Transfer ──────────────────────────
-export const executeSingleTransfer = async (transferId, batchId) => {
+export const executeSingleTransfer = async (transferId, batchId, userId) => {
   const [rows] = await pool.query(
     `SELECT t.*, b.momo_account_id, b.reference
      FROM transfers t
      JOIN batches b ON t.batch_id = b.id
-     WHERE t.id = ? AND t.batch_id = ?`,
-    [transferId, batchId],
+     WHERE t.id = ? AND t.batch_id = ? AND b.user_id = ?`,
+    [transferId, batchId, userId],
   );
 
   if (rows.length === 0) throw new Error("TRANSFER_NOT_FOUND");
@@ -145,8 +148,8 @@ export const executeSingleTransfer = async (transferId, batchId) => {
 };
 
 // ─── Execute All Pending Transfers in Batch ───────────
-export const executeBatch = async (batchId) => {
-  const batch = await getBatchById(batchId);
+export const executeBatch = async (batchId, userId) => {
+  const batch = await getBatchById(batchId, userId);
   if (!batch) throw new Error("BATCH_NOT_FOUND");
 
   if (batch.status === "processing") throw new Error("BATCH_ALREADY_RUNNING");
@@ -237,11 +240,15 @@ const processTransfer = async (transfer, account, reference = "") => {
 // ─── Update Transfer (edit before execution) ─────────
 export const updateTransfer = async (
   transferId,
+  userId,
   { amount, recipientNameInput },
 ) => {
-  const [rows] = await pool.query(`SELECT * FROM transfers WHERE id = ?`, [
-    transferId,
-  ]);
+  const [rows] = await pool.query(
+    `SELECT t.* FROM transfers t
+     JOIN batches b ON t.batch_id = b.id
+     WHERE t.id = ? AND b.user_id = ?`,
+    [transferId, userId],
+  );
 
   if (rows.length === 0) throw new Error("TRANSFER_NOT_FOUND");
   if (rows[0].status !== "pending") throw new Error("TRANSFER_NOT_EDITABLE");
@@ -253,17 +260,23 @@ export const updateTransfer = async (
     [amount, recipientNameInput, transferId],
   );
 
-  const [updated] = await pool.query(`SELECT * FROM transfers WHERE id = ?`, [
-    transferId,
-  ]);
+  const [updated] = await pool.query(
+    `SELECT t.* FROM transfers t
+     JOIN batches b ON t.batch_id = b.id
+     WHERE t.id = ? AND b.user_id = ?`,
+    [transferId, userId],
+  );
   return updated[0];
 };
 
 // ─── Delete Transfer ──────────────────────────────────
-export const deleteTransfer = async (transferId) => {
-  const [rows] = await pool.query(`SELECT * FROM transfers WHERE id = ?`, [
-    transferId,
-  ]);
+export const deleteTransfer = async (transferId, userId) => {
+  const [rows] = await pool.query(
+    `SELECT t.* FROM transfers t
+     JOIN batches b ON t.batch_id = b.id
+     WHERE t.id = ? AND b.user_id = ?`,
+    [transferId, userId],
+  );
 
   if (rows.length === 0) throw new Error("TRANSFER_NOT_FOUND");
   if (rows[0].status !== "pending") throw new Error("TRANSFER_NOT_DELETABLE");

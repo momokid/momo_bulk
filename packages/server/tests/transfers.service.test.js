@@ -223,16 +223,17 @@ describe("Transfers Service", () => {
         .mockResolvedValueOnce([{}])
         .mockResolvedValueOnce([[{ id: 1, amount: 300, status: "pending" }]]);
 
-      const result = await updateTransfer(1, {
+      const result = await updateTransfer(1, 1, {
         amount: 300,
         recipientNameInput: "Kofi Mensah",
       });
+
       expect(result.amount).toBe(300);
     });
 
     test("throws TRANSFER_NOT_EDITABLE for non-pending transfer", async () => {
       pool.query.mockResolvedValueOnce([[{ id: 1, status: "success" }]]);
-      await expect(updateTransfer(1, { amount: 100 })).rejects.toThrow(
+      await expect(updateTransfer(1, 1, { amount: 100 })).rejects.toThrow(
         "TRANSFER_NOT_EDITABLE",
       );
     });
@@ -251,7 +252,9 @@ describe("Transfers Service", () => {
 
     test("throws TRANSFER_NOT_DELETABLE for non-pending transfer", async () => {
       pool.query.mockResolvedValueOnce([[{ id: 1, status: "success" }]]);
-      await expect(deleteTransfer(1)).rejects.toThrow("TRANSFER_NOT_DELETABLE");
+      await expect(deleteTransfer(1, 1)).rejects.toThrow(
+        "TRANSFER_NOT_DELETABLE",
+      );
     });
   });
 });

@@ -1,10 +1,12 @@
+// packages/server/src/modules/transfers/transfers.controller.js
+
 import * as transfersService from "./transfers.service.js";
 
 // ─── POST /api/transfers/batch ────────────────────────
 export const createBatch = async (req, res) => {
   try {
     const {
-      username,
+      senderNumberId,
       reference,
       senderNumber,
       senderName,
@@ -12,13 +14,7 @@ export const createBatch = async (req, res) => {
       recipients,
     } = req.body;
 
-    if (
-      !username ||
-      !reference ||
-      !senderNumber ||
-      !senderName ||
-      !momoAccountId
-    ) {
+    if (!reference || !senderNumber || !senderName || !momoAccountId) {
       return res.status(400).json({ error: "All batch fields are required" });
     }
 
@@ -27,7 +23,8 @@ export const createBatch = async (req, res) => {
     }
 
     const batch = await transfersService.createBatch({
-      username,
+      userId: req.user.id,
+      senderNumberId: senderNumberId || null,
       reference,
       senderNumber,
       senderName,
@@ -45,13 +42,7 @@ export const createBatch = async (req, res) => {
 // ─── GET /api/transfers/batches ───────────────────────
 export const getAllBatches = async (req, res) => {
   try {
-    const { username } = req.query;
-
-    if (!username) {
-      return res.status(400).json({ error: "Username is required" });
-    }
-
-    const batches = await transfersService.getAllBatches(username);
+    const batches = await transfersService.getAllBatches(req.user.id);
     return res.json({ batches });
   } catch (error) {
     console.error("getAllBatches error:", error.message);
@@ -59,10 +50,13 @@ export const getAllBatches = async (req, res) => {
   }
 };
 
-// ─── GET /api/transfers/batch/:batchId ───────────────
+// ─── GET /api/transfers/batch/:batchId ────────────────
 export const getBatch = async (req, res) => {
   try {
-    const batch = await transfersService.getBatchById(req.params.batchId);
+    const batch = await transfersService.getBatchById(
+      req.params.batchId,
+      req.user.id,
+    );
 
     if (!batch) {
       return res.status(404).json({ error: "Batch not found" });
@@ -79,7 +73,7 @@ export const getBatch = async (req, res) => {
 export const executeBatch = async (req, res) => {
   try {
     const { batchId } = req.params;
-    const result = await transfersService.executeBatch(batchId);
+    const result = await transfersService.executeBatch(batchId, req.user.id);
     return res.json({ message: "Batch executed", result });
   } catch (error) {
     if (error.message === "BATCH_NOT_FOUND") {
@@ -103,6 +97,7 @@ export const executeSingle = async (req, res) => {
     const result = await transfersService.executeSingleTransfer(
       transferId,
       batchId,
+      req.user.id,
     );
     return res.json({ message: "Transfer executed", result });
   } catch (error) {
@@ -132,10 +127,11 @@ export const updateTransfer = async (req, res) => {
       return res.status(400).json({ error: "Valid amount is required" });
     }
 
-    const transfer = await transfersService.updateTransfer(transferId, {
-      amount,
-      recipientNameInput,
-    });
+    const transfer = await transfersService.updateTransfer(
+      transferId,
+      req.user.id,
+      { amount, recipientNameInput },
+    );
 
     return res.json({ message: "Transfer updated", transfer });
   } catch (error) {
@@ -156,7 +152,7 @@ export const updateTransfer = async (req, res) => {
 export const deleteTransfer = async (req, res) => {
   try {
     const { transferId } = req.params;
-    await transfersService.deleteTransfer(transferId);
+    await transfersService.deleteTransfer(transferId, req.user.id);
     return res.json({ message: "Transfer removed" });
   } catch (error) {
     if (error.message === "TRANSFER_NOT_FOUND") {

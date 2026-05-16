@@ -1,16 +1,22 @@
+// packages/server/src/modules/transfers/transfers.routes.js
+
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
+import { authenticate } from "../../middleware/authenticate.js";
 import * as controller from "./transfers.controller.js";
 
 const router = Router();
 
-// Strict rate limit on execution endpoints
+// ─── Rate limit on execution endpoints ───────────────────────────────────────
 // 5 executions per minute — prevents accidental double execution
 const executeLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5,
   message: { error: "Too many execution requests. Please wait a moment." },
 });
+
+// ─── All routes require authentication ───────────────────────────────────────
+router.use(authenticate);
 
 // ─── Batch ────────────────────────────────────────────
 router.post("/batch", controller.createBatch);
